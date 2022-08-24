@@ -15,6 +15,16 @@ namespace SoftFluent.Windows
 {
     public partial class PropertyGrid : UserControl
     {
+        private static TextBox txtFilterInternal = null;
+
+        public static readonly DependencyProperty BackgroundColorProperty =
+            DependencyProperty.Register("BackgroundColor", typeof(Brush), typeof(PropertyGrid),
+            new FrameworkPropertyMetadata(new SolidColorBrush(Colors.LightGray), FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.AffectsMeasure, BackgroundColorPropertyChanged));
+        public static readonly DependencyProperty ForegroundColorProperty =
+
+            DependencyProperty.Register("ForegroundColor", typeof(Brush), typeof(PropertyGrid),
+            new FrameworkPropertyMetadata(new SolidColorBrush(Colors.Black), FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.AffectsMeasure, BackgroundColorPropertyChanged));
+
         public static readonly DependencyProperty IsReadOnlyProperty =
             DependencyProperty.Register("IsReadOnly", typeof(bool), typeof(PropertyGrid),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.AffectsMeasure, IsReadOnlyPropertyChanged));
@@ -29,6 +39,8 @@ namespace SoftFluent.Windows
 
         public static readonly DependencyProperty ValueEditorTemplateSelectorProperty =
             DependencyProperty.Register("ValueEditorTemplateSelector", typeof(DataTemplateSelector), typeof(PropertyGrid), new FrameworkPropertyMetadata(null));
+        public static readonly DependencyProperty HelpVisibleProperty =
+            DependencyProperty.Register("HelpVisible", typeof(bool), typeof(PropertyGrid), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, HelpVisiblePropertyChanged));
 
         public static readonly RoutedEvent BrowseEvent = EventManager.RegisterRoutedEvent("Browse", RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(PropertyGrid));
 
@@ -70,6 +82,21 @@ namespace SoftFluent.Windows
             get { return (bool)GetValue(IsReadOnlyProperty); }
             set { SetValue(IsReadOnlyProperty, value); }
         }
+        public Brush BackgroundColor
+        {
+            get { return (Brush)GetValue(BackgroundColorProperty); }
+            set { SetValue(BackgroundColorProperty, value); }
+        }
+        public Brush ForegroundColor
+        {
+            get { return (Brush)GetValue(ForegroundColorProperty); }
+            set { SetValue(ForegroundColorProperty, value); }
+        }
+        public bool HelpVisible
+        {
+            get { return (bool)GetValue(HelpVisibleProperty); }
+            set { SetValue(HelpVisibleProperty, value); }
+        }
 
         public bool GroupByCategory
         {
@@ -79,31 +106,49 @@ namespace SoftFluent.Windows
             }
             set
             {
-                if (value)
+                if (PropertiesSource != null)
                 {
-                    if (GroupByCategory)
-                        return;
+                    if (value)
+                    {
+                        //if (GroupByCategory)
+                        //    return;
 
-                    PropertiesSource.GroupDescriptions.Add(new PropertyGroupDescription("Category"));
-                }
-                else
-                {
-                    if (!GroupByCategory)
-                        return;
+                        PropertiesSource.GroupDescriptions.Add(new PropertyGroupDescription("Category"));
+                        PropertiesSource.SortDescriptions.Add(new SortDescription("Category", ListSortDirection.Ascending));
+                        PropertiesSource.SortDescriptions.Add(new SortDescription("Name", ListSortDirection.Ascending));
+                        if (PropertiesSource.View != null)
+                            PropertiesSource.View.Filter = UserFilter;
+                    }
+                    else
+                    {
+                        //if (!GroupByCategory)
+                        //    return;
 
-                    PropertiesSource.GroupDescriptions.Clear();
+                        PropertiesSource.GroupDescriptions.Clear();
+                        PropertiesSource.SortDescriptions.Clear();
+                        PropertiesSource.SortDescriptions.Add(new SortDescription("Name", ListSortDirection.Ascending));
+                        if (PropertiesSource.View != null)
+                            PropertiesSource.View.Filter = UserFilter;
+                    }
                 }
             }
         }
 
         public CollectionViewSource PropertiesSource { get; private set; }
+        public object SelectedItem { get; set; }
+        private TypeAssistant _assistant;
 
         public PropertyGrid()
         {
+            _assistant = new TypeAssistant(300);
+            _assistant.Idled += assistant_Idled;
+
             DefaultCategoryName = CategoryAttribute.Default.Category;
             ChildEditorWindowOffset = 20;
             InitializeComponent();
             PropertiesSource = (CollectionViewSource)FindResource("PropertiesSource");
+            txtFilterInternal = txtFilter;
+
             CommandBindings.Add(new CommandBinding(NewGuidCommand, OnGuidCommandExecuted, OnGuidCommandCanExecute));
             CommandBindings.Add(new CommandBinding(EmptyGuidCommand, OnGuidCommandExecuted, OnGuidCommandCanExecute));
             CommandBindings.Add(new CommandBinding(IncrementGuidCommand, OnGuidCommandExecuted, OnGuidCommandCanExecute));
@@ -180,6 +225,22 @@ namespace SoftFluent.Windows
                 if (expr != null && expr.ParentBinding != null && where(expr.ParentBinding))
                 {
                     action(expr);
+                }
+            }
+        }
+        private static void HelpVisiblePropertyChanged(DependencyObject source, DependencyPropertyChangedEventArgs e)
+        {
+            PropertyGrid pg = source as PropertyGrid;
+
+            if (e.NewValue != e.OldValue)
+            {
+                if (e.NewValue.Equals(true))
+                {
+                    pg.dkHelp.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    pg.dkHelp.Visibility = Visibility.Collapsed;
                 }
             }
         }
@@ -435,6 +496,10 @@ namespace SoftFluent.Windows
             grid.PropertiesSource.Source = grid.PropertiesSource.Source;
         }
 
+        private static void BackgroundColorPropertyChanged(DependencyObject source, DependencyPropertyChangedEventArgs e)
+        {
+        }
+
         public static void FocusChildUsingBinding(FrameworkElement element)
         {
             if (element == null)
@@ -466,6 +531,7 @@ namespace SoftFluent.Windows
                 return;
 
             PropertiesSource.Source = CreateDataProvider(SelectedObject);
+            PropertiesSource.View.Filter = UserFilter;
         }
 
         private static void SelectedObjectPropertyChanged(DependencyObject source, DependencyPropertyChangedEventArgs e)
@@ -500,6 +566,7 @@ namespace SoftFluent.Windows
             }
 
             grid.PropertiesSource.Source = grid.CreateDataProvider(e.NewValue);
+            grid.PropertiesSource.View.Filter = UserFilter;
         }
 
         private void OnDispatcherSourcePropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -557,6 +624,17 @@ namespace SoftFluent.Windows
 
                 property.RefreshValueFromDescriptor(true, forceRaise, true);
                 OnPropertyChanged(this, CreateEventArgs(property));
+            }
+        }
+
+        private void PropertiesGrid_CurrentCellChanged(object sender, EventArgs e)
+        {
+            var dg = sender as DataGrid;
+            if (dg != null && dg.CurrentItem is PropertyGridProperty)
+            {
+                PropertyGridProperty prop = dg.CurrentItem as PropertyGridProperty;
+                txtHelpCaption.Text = prop.Name;
+                txtHelpDescription.Text = prop.Description;
             }
         }
 
@@ -729,6 +807,66 @@ namespace SoftFluent.Windows
                     }
                 }
             }
+        }
+
+        private void PropertiesGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+        }
+        private void ComboBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            e.Handled = true;
+        }
+
+        private void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            ScrollViewer scv = (ScrollViewer)sender;
+            scv.ScrollToVerticalOffset(scv.VerticalOffset - e.Delta / 10);
+            e.Handled = true;
+        }
+
+        private void rdoGroupList_Checked(object sender, RoutedEventArgs e)
+        {
+            GroupByCategory = true;
+        }
+
+        private void rdoSortedList_Checked(object sender, RoutedEventArgs e)
+        {
+            GroupByCategory = false;
+        }
+
+        private void txtFilter_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (PropertiesSource == null)
+                return;
+
+            _assistant.TextChanged();
+        }
+        void assistant_Idled(object sender, EventArgs e)
+        {
+            Dispatcher.Invoke(() => PropertiesSource.View.Refresh());
+        }
+
+        private static bool UserFilter(object item)
+        {
+            if (txtFilterInternal == null || String.IsNullOrEmpty(txtFilterInternal.Text))
+                return true;
+
+            var prop = (PropertyGridProperty)item;
+
+            var text = txtFilterInternal.Text.Trim();
+            bool retVal = false;
+            if (String.IsNullOrEmpty(text))
+                retVal = true;
+            else
+                retVal = prop.Name.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0
+                        || prop.Description.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0;
+
+            return retVal;
+        }
+
+        private void btnClearSearchBox_Click(object sender, RoutedEventArgs e)
+        {
+            txtFilterInternal.Clear();
         }
     }
 }

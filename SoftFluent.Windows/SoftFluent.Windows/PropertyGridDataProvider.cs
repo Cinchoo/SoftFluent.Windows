@@ -113,6 +113,12 @@ namespace SoftFluent.Windows
                 property.IsFlagsEnum = options.IsFlagsEnum;
             }
 
+            var att1 = descriptor.GetAttribute<IgnoreValueAttribute>();
+            if (att1 != null && att1.Value != null)
+            {
+                property.IgnoreValue = att1.Value.ToString();
+            }
+
             var att = descriptor.GetAttribute<DefaultValueAttribute>();
             if (att != null)
             {

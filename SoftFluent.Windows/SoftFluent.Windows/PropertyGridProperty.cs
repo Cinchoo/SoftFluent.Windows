@@ -133,6 +133,17 @@ namespace SoftFluent.Windows
         public virtual PropertyDescriptor Descriptor { get { return GetProperty<PropertyDescriptor>(); } set { SetProperty(value); } }
         public virtual TypeConverter Converter { get { return GetProperty<TypeConverter>(); } set { SetProperty(value); } }
 
+        public virtual string IgnoreValue
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
         public virtual object DefaultValue
         {
             get
@@ -300,31 +311,34 @@ namespace SoftFluent.Windows
             }
             set
             {
-                if (Converter != null)
+                if (IgnoreValue == null || IgnoreValue != value)
                 {
-                    if (Converter.CanConvertFrom(typeof(string)))
+                    if (Converter != null)
                     {
-                        Value = Converter.ConvertFrom(value);
-                        return;
+                        if (Converter.CanConvertFrom(typeof(string)))
+                        {
+                            Value = Converter.ConvertFrom(value);
+                            return;
+                        }
+
+                        if (Descriptor != null && Converter.CanConvertTo(Descriptor.PropertyType))
+                        {
+                            Value = Converter.ConvertTo(value, Descriptor.PropertyType);
+                            return;
+                        }
                     }
 
-                    if (Descriptor != null && Converter.CanConvertTo(Descriptor.PropertyType))
+                    if (Descriptor != null)
                     {
-                        Value = Converter.ConvertTo(value, Descriptor.PropertyType);
-                        return;
+                        object v;
+                        if (ConversionService.TryChangeType(value, Descriptor.PropertyType, out v))
+                        {
+                            Value = v;
+                            return;
+                        }
                     }
+                    Value = value;
                 }
-
-                if (Descriptor != null)
-                {
-                    object v;
-                    if (ConversionService.TryChangeType(value, Descriptor.PropertyType, out v))
-                    {
-                        Value = v;
-                        return;
-                    }
-                }
-                Value = value;
             }
         }
 

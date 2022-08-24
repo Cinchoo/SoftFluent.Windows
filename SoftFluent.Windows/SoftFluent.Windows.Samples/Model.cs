@@ -335,21 +335,21 @@ namespace SoftFluent.Windows.Samples
             set { SetProperty(value); }
         }
 
-        [DisplayName("Boolean (Checkbox)")]
-        [Category("Booleans")]
-        public bool SampleBoolean
-        {
-            get { return GetProperty<bool>(); }
-            set { SetProperty(value); }
-        }
+        //[DisplayName("Boolean (Checkbox)")]
+        //[Category("Booleans")]
+        //public bool SampleBoolean
+        //{
+        //    get { return GetProperty<bool>(); }
+        //    set { SetProperty(value); }
+        //}
 
-        [DisplayName("Boolean (Checkbox three states)")]
-        [Category("Booleans")]
-        public bool? SampleNullableBoolean
-        {
-            get { return GetProperty<bool?>(); }
-            set { SetProperty(value); }
-        }
+        //[DisplayName("Boolean (Checkbox three states)")]
+        //[Category("Booleans")]
+        //public bool? SampleNullableBoolean
+        //{
+        //    get { return GetProperty<bool?>(); }
+        //    set { SetProperty(value); }
+        //}
 
         [DisplayName("Boolean (DropDownList)")]
         [Category("Booleans")]
